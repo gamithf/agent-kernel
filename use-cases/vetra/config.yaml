@@ -1,0 +1,27 @@
+whatsapp:
+  agent: "vetra_triage"
+  agent_acknowledgement: "🐾 Vetra is processing your request. One moment please..."
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  max_file_size: 20971520
+
+session:
+  type: in_memory
+
+multimodal:
+  enabled: true
+  storage_type: in_memory
+  max_attachments: 10
+  description_model: gpt-4o-mini
+  analysis_model: gpt-4o
+
+execution:
+  mode: rest_sync
+
+logging:
+  ak:
+    level: INFO
+  system:
+    level: WARNING

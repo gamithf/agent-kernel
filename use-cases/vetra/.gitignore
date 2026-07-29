@@ -1,0 +1,12 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+vetra_chroma/
+dist/
+*.egg-info/
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars

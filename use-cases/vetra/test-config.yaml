@@ -1,0 +1,17 @@
+whatsapp:
+  agent: "vetra_triage"
+
+session:
+  type: in_memory
+
+multimodal:
+  enabled: false
+
+execution:
+  mode: rest_sync
+
+logging:
+  ak:
+    level: ERROR
+  system:
+    level: ERROR
