@@ -2,7 +2,6 @@
 venv/
 __pycache__/
 *.pyc
-.env
 vetra_chroma/
 dist/
 *.egg-info/
@@ -10,3 +9,4 @@ dist/
 terraform.tfstate
 terraform.tfstate.backup
 *.tfvars
+run.ps1

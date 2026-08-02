@@ -1,7 +1,10 @@
+import os
+
+from agentkernel.openai import OpenAIToolBuilder
+from agents import Agent
 from pydantic import BaseModel
 
-from agents import Agent
-from agentkernel.openai import OpenAIToolBuilder
+MODEL = os.environ.get("VETRA_MODEL", "llama-3.3-70b-versatile")
 
 from tool import (
     get_patient_history,
@@ -21,28 +24,33 @@ class ClinicalNote(BaseModel):
 
 
 TRIAGE_INSTRUCTIONS = """
-You are a veterinary clinic assistant coordinator for Vetra. Your job is to understand what the user
-needs and transfer them to the right specialist agent using the handoff mechanism.
+You are a veterinary clinic assistant coordinator for Vetra. Your only job is to route the user to
+the correct specialist agent using the handoff mechanism, then stop. You do NOT answer the question
+yourself and you do NOT perform the task.
 
-Available specialist agents:
-1. **vetra_scribe** — For creating clinical notes after a consultation. Transfer here when the vet
-   describes a diagnosis, treatment plan, or patient visit outcome. The scribe will output a
-   structured ClinicalNote with diagnosis, treatment, dosage, and patient_id.
+Choose EXACTLY ONE specialist based on these STRICT keyword rules, in this priority order:
 
-2. **vetra_clinical_safety** — For checking drug interactions and patient medication history.
-   Transfer here when the vet asks about safety of combining medications, checking if a drug is safe
-   for a specific patient, or reviewing a patient's current prescriptions against a new one.
+1. ROUTE TO vetra_operations IF the message contains ANY of these words/phrases:
+   "dispensed", "dispensing", "inventory", "stock", "schedule a follow-up",
+   "schedule follow-up", "schedule a followup", "remaining in stock", "units remain",
+   "notify the owner", "send notification". Example: "Dispensed 28 Apoquel tablets. Schedule a
+   follow-up in 7 days" -> operations. Operational tasks include deducing inventory and reminders.
 
-3. **vetra_operations** — For inventory management (deducting dispensed drugs), scheduling
-   follow-up reminders, and sending notifications to pet owners. Transfer here for any operational
-   or administrative task.
+2. ROUTE TO vetra_clinical_safety IF the message contains ANY of these words/phrases:
+   "interact", "interaction", "is it safe", "safe to", "check", "contraindication",
+   "current medications", "medication history". Example: "Check if Apoquel interacts with
+   Charlie's current medications" -> clinical_safety.
 
-When a user sends a message, determine their intent and transfer to the appropriate specialist.
-If their request spans multiple domains (e.g. "diagnose and dispense"), handle the clinical part
-with the scribe first, then transfer to operations for the dispensing.
+3. ROUTE TO vetra_scribe IF the message describes a diagnosis, treatment, prescription, dosage, or
+   patient visit outcome. Example: "Charlie has atopic dermatitis. Prescribe Apoquel 5.4mg.
+   Patient ID: CH-001" -> scribe.
 
-Keep responses concise and professional. If you are unsure what the user needs, ask a clarifying
-question before transferring.
+4. If the message spans MULTIPLE domains, route to the FIRST matching domain in this order:
+   scribe (clinical diagnosis) BEFORE operations (dispensing) BEFORE clinical_safety.
+
+5. If none of the above clearly matches, ask the user a clarifying question instead of guessing.
+
+Transfer to exactly one specialist and do not add extra commentary.
 """
 
 SCRIBE_INSTRUCTIONS = """
@@ -57,11 +65,13 @@ Extract the following from the conversation:
 - vet_notes: Any additional notes from the veterinarian
 
 ALWAYS call save_clinical_note after extracting the information to persist it.
-Output your final response using the ClinicalNote structured format.
+Then reply to the user with a concise confirmation in this JSON format:
+{"status": "saved", "diagnosis": "...", "treatment": "...", "dosage": "...", "patient_id": "..."}
 
 Example:
   Vet: "Charlie has atopic dermatitis. I'm prescribing Apoquel 5.4mg twice daily for 14 days."
   You: save_clinical_note(diagnosis="atopic dermatitis", treatment="Apoquel", dosage="5.4mg twice daily for 14 days", patient_id="CH-001")
+  Then reply: {"status": "saved", "diagnosis": "atopic dermatitis", "treatment": "Apoquel", "dosage": "5.4mg twice daily for 14 days", "patient_id": "CH-001"}
 """
 
 CLINICAL_SAFETY_INSTRUCTIONS = """
@@ -69,21 +79,23 @@ You are a veterinary clinical safety specialist. Your job is to check for drug i
 review patient medication history.
 
 Available tools:
-1. get_schemas() — View the available knowledge base schemas.
+1. get_patient_history(patient_id) — Get the patient's current medication list.
 2. read_kb(backend, query, limit) — Search the drug interaction database for conflicts.
-   The backend is "VetDrugDB". Use natural language queries like "Does Apoquel interact with
+   Use backend="VetDrugDB". Use natural language queries like "Does Apoquel interact with
    Carprofen in dogs?".
-3. get_patient_history(patient_id) — Get the patient's current medication list.
 
-Protocol:
-1. Call get_patient_history(patient_id) to retrieve the patient's current medications.
-2. If the patient is on any medications, call read_kb(backend="VetDrugDB", query="<new drug>
-   interaction with <current meds> in <species>", limit=5) to search for known interactions.
+Protocol — you MUST call these tools in order. Do NOT answer from memory:
+1. ALWAYS call get_patient_history(patient_id) FIRST to retrieve the patient's current medications.
+   This is mandatory before drawing any conclusion.
+2. ALWAYS call read_kb(backend="VetDrugDB", query="<new drug> interaction with <current meds> in
+   <species>", limit=5) to search for known interactions with EVERY current medication.
 3. If a conflict is found, IMMEDIATELY flag the alert with severity level (critical/high/moderate).
 4. If multiple interactions exist, list all of them with their severity and clinical guidance.
 5. Suggest safer alternatives when available.
 6. If no interaction found, explicitly confirm it is safe to proceed.
 
+If you have not called get_patient_history, call it now before answering. Base your answer ONLY on the
+actual tool results, never on your own knowledge of the drugs.
 Always include the patient's name in your response for clarity.
 """
 
@@ -101,57 +113,58 @@ Task rules:
 Be concise and professional. Confirm each action after it completes.
 """
 
-scribe_tools = OpenAIToolBuilder.bind([
-    save_clinical_note,
-])
+scribe_tools = OpenAIToolBuilder.bind(
+    [
+        save_clinical_note,
+    ]
+)
 
-operations_tools = OpenAIToolBuilder.bind([
-    update_inventory,
-    schedule_followup,
-    send_owner_notification,
-])
+operations_tools = OpenAIToolBuilder.bind(
+    [
+        update_inventory,
+        schedule_followup,
+        send_owner_notification,
+    ]
+)
 
 scribe_agent = Agent(
     name="vetra_scribe",
+    model=MODEL,
     instructions=SCRIBE_INSTRUCTIONS,
     tools=scribe_tools,
-    output_type=ClinicalNote,
 )
 
 operations_agent = Agent(
     name="vetra_operations",
+    model=MODEL,
     instructions=OPERATIONS_INSTRUCTIONS,
     tools=operations_tools,
 )
 
 
 def create_agents(with_kb_tools: list = None):
+    # Clinical safety only gets get_patient_history + read_kb (2 tools) so the
+    # model can reliably call them. Passing all 4 KB tools overwhelms smaller models.
     clinical_safety_tools_list = [get_patient_history]
     if with_kb_tools:
-        clinical_safety_tools_list.extend(with_kb_tools)
+        for _f in with_kb_tools:
+            if getattr(_f, "__name__", "") == "read_kb":
+                clinical_safety_tools_list.append(_f)
+                break
 
     clinical_safety_tools = OpenAIToolBuilder.bind(clinical_safety_tools_list)
 
     clinical_safety_agent = Agent(
         name="vetra_clinical_safety",
+        model=MODEL,
         instructions=CLINICAL_SAFETY_INSTRUCTIONS,
         tools=clinical_safety_tools,
     )
 
-    all_tools = OpenAIToolBuilder.bind([
-        save_clinical_note,
-        get_patient_history,
-        update_inventory,
-        schedule_followup,
-        send_owner_notification,
-    ])
-    if with_kb_tools:
-        all_tools.extend(OpenAIToolBuilder.bind(with_kb_tools))
-
     triage_agent = Agent(
         name="vetra_triage",
+        model=MODEL,
         instructions=TRIAGE_INSTRUCTIONS,
-        tools=all_tools,
         handoffs=[scribe_agent, clinical_safety_agent, operations_agent],
     )
 

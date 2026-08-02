@@ -1,8 +1,8 @@
 from agentkernel.aws import Lambda
 from agentkernel.openai import OpenAIModule
 
-from knowledge import create_vetra_knowledge_base
 from agent import create_agents
+from knowledge import create_vetra_knowledge_base
 
 _, kb = create_vetra_knowledge_base()
 kb_tools = kb.build()

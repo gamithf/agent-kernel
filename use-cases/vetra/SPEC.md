@@ -17,9 +17,9 @@ Build four OpenAI Agents SDK agents registered via a single `OpenAIModule`:
 
 1. **`vetra_triage`** — Orchestrator agent that receives all incoming messages and hands off to the appropriate specialist agent using OpenAI handoffs. Instructions describe when to transfer to each specialist.
 
-2. **`vetra_scribe`** — Generates structured clinical notes from free-form text. Output type is a Pydantic `ClinicalNote` model (diagnosis, treatment, dosage, patient_id, vet_notes). Calls `save_clinical_note` tool to persist the note.
+2. **`vetra_scribe`** — Generates structured clinical notes from free-form text and returns them as a JSON confirmation string (via instructions, not Pydantic `output_type`, since the default Groq model lacks `json_schema` support). Calls `save_clinical_note` tool to persist the note.
 
-3. **`vetra_clinical_safety`** — Checks drug interactions by querying ChromaDB (via RAG) and retrieving patient history. Calls `check_drug_interaction` and `get_patient_history` tools. If a conflict is found, flags an alert with severity.
+3. **`vetra_clinical_safety`** — Checks drug interactions by querying ChromaDB (via `read_kb` RAG tool) and retrieving patient history. Calls `get_patient_history` and `read_kb` tools. If a conflict is found, flags an alert with severity.
 
 4. **`vetra_operations`** — Manages inventory and client communications. Calls `update_inventory`, `schedule_followup`, and `send_owner_notification` tools.
 
@@ -30,7 +30,7 @@ Each tool is a plain Python function with type hints and docstrings, bound via `
 | Tool | Agent | Purpose |
 |------|-------|---------|
 | `save_clinical_note` | Scribe | Persist structured clinical note to in-memory store |
-| `check_drug_interaction` | Clinical Safety | Query ChromaDB vector store for drug interactions |
+| `read_kb` | Clinical Safety | Query ChromaDB vector store for drug interactions |
 | `get_patient_history` | Clinical Safety | Retrieve patient's medication history |
 | `update_inventory` | Operations | Deduct medication from in-memory inventory |
 | `schedule_followup` | Operations | Schedule a follow-up reminder |
@@ -45,7 +45,7 @@ Each tool is a plain Python function with type hints and docstrings, bound via `
 
 ### WhatsApp Integration
 
-- Custom `VetraWhatsAppHandler` extending `AgentWhatsAppRequestHandler`.
+- Custom `VetraWhatsAppHandler` extending `RESTRequestHandler`.
 - Override message handling to support audio/voice note transcription via OpenAI Whisper API.
 - Download audio from WhatsApp, transcribe, inject transcript as text message.
 - Route all messages to `vetra_triage` agent.

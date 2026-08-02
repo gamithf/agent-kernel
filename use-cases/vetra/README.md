@@ -61,7 +61,7 @@ Vetra is a **multi-agent AI system** that transforms how veterinary clinics oper
 
 | Agent | Role | Key Capability |
 |-------|------|----------------|
-| **Scribe Agent** | Clinical documentation | Transforms free-form dictation into structured JSON (diagnosis, treatment, dosage) using OpenAI structured outputs |
+| **Scribe Agent** | Clinical documentation | Transforms free-form dictation into structured JSON (diagnosis, treatment, dosage) and persists it via `save_clinical_note` |
 | **Clinical Safety Agent** | Drug interaction checking | Queries a ChromaDB vector store via RAG to detect conflicts between prescribed and existing medications |
 | **Operations Agent** | Practice management | Manages inventory deductions, schedules follow-ups, and sends owner notifications |
 | **Triage Agent** | Orchestrator | Routes incoming requests to the right specialist using OpenAI agent handoffs |
@@ -69,7 +69,7 @@ Vetra is a **multi-agent AI system** that transforms how veterinary clinics oper
 ### Key Features
 
 - **Voice note support**: Vets send WhatsApp voice notes → transcribed via Whisper API → processed by agents
-- **Structured clinical notes**: Chaotic spoken language → perfect JSON schema (diagnosis, treatment, dosage)
+- **Structured clinical notes**: Chaotic spoken language → structured JSON (diagnosis, treatment, dosage), saved to the notes store
 - **RAG-powered drug safety**: ChromaDB vector database of veterinary drug interactions → semantic conflict detection
 - **Multi-agent handoffs**: Seamless transfer between specialist agents via OpenAI Agents SDK native handoff mechanism
 - **WhatsApp-native**: No app to install — works on the platform already on every vet's phone
@@ -83,9 +83,14 @@ Vetra is a **multi-agent AI system** that transforms how veterinary clinics oper
 | Vector database | ChromaDB (via `ChromaManager` + `KnowledgeBuilder`) |
 | Messaging | WhatsApp Cloud API (via Agent Kernel WhatsApp integration) |
 | Speech-to-text | OpenAI Whisper API (custom handler) |
-| Structured output | Pydantic `ClinicalNote` model → `AgentReplyAny` |
+| Structured output | Instruction-driven JSON reply from the Scribe agent |
 | Session management | Agent Kernel session store (in-memory / DynamoDB) |
 | Deployment | AWS Lambda (serverless) |
+
+> **Note:** The Scribe agent returns structured JSON via its instructions rather than a Pydantic
+> `output_type`, because the default Groq model (`llama-3.3-70b-versatile`) does not support OpenAI
+> `json_schema` structured output. The structured data is still captured in the `save_clinical_note`
+> tool arguments.
 
 ---
 
@@ -148,7 +153,9 @@ uv run python demo.py
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key for LLM + Whisper |
+| `OPENAI_API_KEY` | Yes | LLM + Whisper API key. For Groq, set this to your Groq API key. |
+| `OPENAI_BASE_URL` | No | Custom LLM endpoint. Defaults to OpenAI; set `https://api.groq.com/openai/v1` for Groq. |
+| `VETRA_MODEL` | No | LLM model id (default `llama-3.3-70b-versatile`). |
 | `AK_WHATSAPP__VERIFY_TOKEN` | For WhatsApp | Webhook verification token |
 | `AK_WHATSAPP__ACCESS_TOKEN` | For WhatsApp | WhatsApp Cloud API access token |
 | `AK_WHATSAPP__PHONE_NUMBER_ID` | For WhatsApp | WhatsApp Business phone number ID |
@@ -206,7 +213,7 @@ chmod +x deploy.sh
 | Criterion | How Vetra Addresses It |
 |-----------|----------------------|
 | **Idea / Use Case Value (40%)** | Solves real veterinary pain points: documentation burden, drug safety risks, operational overhead. Aligned with SDG 3. Niche, creative, and practical. |
-| **Agent Kernel Usage (30%)** | Uses WhatsApp integration, ChromaDB knowledge base (RAG), OpenAI framework adapter with handoffs, OpenAIModule/OpenAIRunner/OpenAIToolBuilder, ToolContext session memory, structured outputs via AgentReplyAny. Custom handler extends AgentWhatsAppRequestHandler. |
+| **Agent Kernel Usage (30%)** | Uses WhatsApp integration, ChromaDB knowledge base (RAG), OpenAI framework adapter with handoffs, OpenAIModule/OpenAIRunner/OpenAIToolBuilder, ToolContext session memory, and structured note output. Custom handler extends RESTRequestHandler. |
 | **End Product (20%)** | Fully functional CLI + WhatsApp modes. Complete user flow: voice/text in → structured notes out with safety checks. Ready to demo. |
 | **Documentation (10%)** | README with all 4 required points, AGENTS.md for agent guidance, SPEC.md for coding agents, demo video. |
 

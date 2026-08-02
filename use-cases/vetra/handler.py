@@ -7,20 +7,17 @@ from typing import Optional
 
 import httpx
 import openai
-from fastapi import APIRouter, HTTPException, Request
-
 from agentkernel.api import RESTRequestHandler
 from agentkernel.core import AgentService, Config
 from agentkernel.core.model import AgentRequestFile, AgentRequestText
+from fastapi import APIRouter, HTTPException, Request
 
 
 class VetraWhatsAppHandler(RESTRequestHandler):
     def __init__(self):
         self._log = logging.getLogger("vetra.whatsapp")
         self._whatsapp_agent = Config.get().whatsapp.agent if Config.get().whatsapp.agent != "" else None
-        self._acknowledgement = (
-            Config.get().whatsapp.agent_acknowledgement if Config.get().whatsapp.agent_acknowledgement != "" else None
-        )
+        self._acknowledgement = Config.get().whatsapp.agent_acknowledgement if Config.get().whatsapp.agent_acknowledgement != "" else None
         self._verify_token = Config.get().whatsapp.verify_token
         self._access_token = Config.get().whatsapp.access_token
         self._app_secret = Config.get().whatsapp.app_secret
@@ -78,6 +75,7 @@ class VetraWhatsAppHandler(RESTRequestHandler):
     def _verify_signature(self, payload: bytes, signature: str) -> bool:
         import hashlib
         import hmac
+
         if not signature.startswith("sha256="):
             return False
         expected = hmac.new(self._app_secret.encode(), payload, hashlib.sha256).hexdigest()
@@ -251,7 +249,7 @@ class VetraWhatsAppHandler(RESTRequestHandler):
         headers = {"Authorization": f"Bearer {self._access_token}", "Content-Type": "application/json"}
 
         max_chars = 4096
-        chunks = [text[i: i + max_chars] for i in range(0, len(text), max_chars)]
+        chunks = [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
 
         async with httpx.AsyncClient() as client:
             for i, chunk in enumerate(chunks):
@@ -268,7 +266,12 @@ class VetraWhatsAppHandler(RESTRequestHandler):
                     resp = await client.post(url, json=payload, headers=headers)
                     resp.raise_for_status()
                 except Exception as e:
-                    self._log.error(f"Failed to send message: {e}")
+                    detail = ""
+                    try:
+                        detail = resp.text[:500]
+                    except Exception:
+                        pass
+                    self._log.error(f"Failed to send message to {to_number}: {e} | body={detail}")
 
     async def _get_media_info(self, media_id: str):
         try:

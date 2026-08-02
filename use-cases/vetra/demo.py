@@ -1,6 +1,19 @@
-import asyncio
 import argparse
+import asyncio
 import logging
+import os
+
+# Load .env file into os.environ so OpenAI/Groq SDK picks it up
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _k, _v = _k.strip(), _v.strip().strip("\"'")
+                if _k not in os.environ:
+                    os.environ[_k] = _v
 
 from agentkernel.core import AgentService
 from agentkernel.openai import OpenAIModule
@@ -8,10 +21,17 @@ from agentkernel.openai import OpenAIModule
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("vetra")
 
+logger.info(
+    "LLM config -> base_url=%s model=%s key=%s...",
+    os.environ.get("OPENAI_BASE_URL"),
+    os.environ.get("VETRA_MODEL"),
+    os.environ.get("OPENAI_API_KEY", "")[:6],
+)
+
 
 def setup():
-    from knowledge import create_vetra_knowledge_base
     from agent import create_agents
+    from knowledge import create_vetra_knowledge_base
 
     _, kb = create_vetra_knowledge_base()
     kb_tools = kb.build()
@@ -62,6 +82,7 @@ def run_server():
     setup()
 
     from agentkernel.api.http import RESTAPI
+
     from handler import VetraWhatsAppHandler
 
     handler = VetraWhatsAppHandler()

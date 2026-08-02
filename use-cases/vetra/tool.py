@@ -22,6 +22,7 @@ INVENTORY_STORE: dict[str, int] = {
 PATIENT_MEDICATIONS: dict[str, list[dict[str, Any]]] = {
     "CH-001": [
         {"drug": "Carprofen", "dosage": "50mg once daily", "prescribed": "2026-06-15", "condition": "osteoarthritis"},
+        {"drug": "Prednisone", "dosage": "0.5mg/kg once daily", "prescribed": "2026-07-20", "condition": "autoimmune dermatitis"},
     ],
     "CH-002": [
         {"drug": "Enalapril", "dosage": "0.5mg/kg twice daily", "prescribed": "2026-05-01", "condition": "heart murmur"},

@@ -11,11 +11,7 @@ session:
   type: in_memory
 
 multimodal:
-  enabled: true
-  storage_type: in_memory
-  max_attachments: 10
-  description_model: gpt-4o-mini
-  analysis_model: gpt-4o
+  enabled: false
 
 execution:
   mode: rest_sync

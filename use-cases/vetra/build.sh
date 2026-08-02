@@ -7,7 +7,7 @@ echo ""
 cd "$(dirname "$0")"
 
 echo "[1/3] Creating Python virtual environment..."
-uv sync
+uv sync --reinstall-package openai-agents
 
 echo ""
 echo "[2/3] Seeding ChromaDB drug interaction database..."

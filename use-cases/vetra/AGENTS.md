@@ -10,7 +10,7 @@ Vetra is a multi-agent veterinary clinic assistant built on Agent Kernel. It use
 WhatsApp (text, voice note, image)
   │
   ▼
-VetraWhatsAppHandler (custom, extends AgentWhatsAppRequestHandler)
+VetraWhatsAppHandler (custom, extends RESTRequestHandler)
   │  • Audio → Whisper transcription
   │  • Text/images → pass through
   │
@@ -20,11 +20,11 @@ AgentService → Runtime.run()
   ▼
 vetra_triage (OpenAI Agents SDK Agent with handoffs)
   │
-  ├──→ vetra_scribe (structured output → ClinicalNote)
+  ├──→ vetra_scribe (structured JSON note)
   │       • Calls save_clinical_note()
   │
   ├──→ vetra_clinical_safety (RAG via ChromaDB)
-  │       • Calls check_drug_interaction()
+  │       • Calls read_kb()
   │       • Calls get_patient_history()
   │
   └──→ vetra_operations (inventory + notifications)
@@ -62,7 +62,7 @@ Keep responses concise. If unsure, ask clarifying questions.
 
 You are a veterinary medical scribe. Transform free-form observations into a structured clinical note.
 
-Extract: diagnosis, treatment, dosage, patient_id, and any additional vet_notes. Always call `save_clinical_note` to persist the note. Output your final response using the ClinicalNote structured format.
+Extract: diagnosis, treatment, dosage, patient_id, and any additional vet_notes. Always call `save_clinical_note` to persist the note. Output your final response as a JSON confirmation string (e.g. `{"status": "saved", ...}`).
 
 ### vetra_clinical_safety
 
@@ -70,7 +70,7 @@ You are a veterinary clinical safety specialist.
 
 Protocol:
 1. Call `get_patient_history(patient_id)` to retrieve the patient's current medications
-2. Call `check_drug_interaction(new_drug, patient_id)` to check for known interactions with current meds
+2. Call `read_kb(backend="VetDrugDB", query="<new drug> interaction with <current meds>", limit=5)` to check for known interactions with current meds
 3. If a conflict is found, IMMEDIATELY flag the alert with severity level (critical/high/moderate)
 4. If multiple interactions exist, list all of them
 5. Suggest safer alternatives when available
@@ -101,6 +101,8 @@ All tools are plain Python functions registered via `OpenAIToolBuilder.bind()`. 
 - `config.yaml` — Main config (WhatsApp agent name, multimodal, session store type)
 - Environment variables with `AK_` prefix override YAML (e.g., `AK_WHATSAPP__ACCESS_TOKEN`)
 - `OPENAI_API_KEY` — Required for LLM calls
+- `OPENAI_BASE_URL` — LLM endpoint (set to `https://api.groq.com/openai/v1` for Groq)
+- `VETRA_MODEL` — LLM model id (default `llama-3.3-70b-versatile`)
 - ChromaDB persists to `./vetra_chroma` directory by default
 
 ## Testing
