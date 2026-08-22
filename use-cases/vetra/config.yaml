@@ -11,7 +11,8 @@ session:
   type: in_memory
 
 multimodal:
-  enabled: false
+  enabled: true
+  storage_type: in_memory
 
 execution:
   mode: rest_sync

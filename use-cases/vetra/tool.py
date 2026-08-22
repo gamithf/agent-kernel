@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Any
 
 from agentkernel.core import ToolContext
 
-CLINICAL_NOTES_STORE: dict[str, dict[str, Any]] = {}
+CLINICAL_NOTES_STORE: dict[str, list[dict[str, Any]]] = {}
 INVENTORY_STORE: dict[str, int] = {
     "Apoquel": 120,
     "Carprofen": 200,
@@ -38,6 +39,52 @@ PATIENT_INFO: dict[str, dict[str, str]] = {
     "FE-001": {"name": "Luna", "species": "Feline", "breed": "Domestic Shorthair", "age": "12 years", "owner": "+1234567892"},
 }
 FOLLOWUPS: list[dict[str, Any]] = []
+
+STORE_FILE = os.path.join(os.path.dirname(__file__), "vetra_store.json")
+
+
+def _save_store_to_file() -> None:
+    try:
+        data = {
+            "CLINICAL_NOTES_STORE": CLINICAL_NOTES_STORE,
+            "INVENTORY_STORE": INVENTORY_STORE,
+            "PATIENT_MEDICATIONS": PATIENT_MEDICATIONS,
+            "PATIENT_INFO": PATIENT_INFO,
+            "FOLLOWUPS": FOLLOWUPS,
+        }
+        with open(STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _load_store_from_file() -> None:
+    global CLINICAL_NOTES_STORE, INVENTORY_STORE, PATIENT_MEDICATIONS, PATIENT_INFO, FOLLOWUPS
+    try:
+        if os.path.exists(STORE_FILE):
+            with open(STORE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "CLINICAL_NOTES_STORE" in data:
+                CLINICAL_NOTES_STORE.clear()
+                CLINICAL_NOTES_STORE.update(data["CLINICAL_NOTES_STORE"])
+            if "INVENTORY_STORE" in data:
+                INVENTORY_STORE.clear()
+                INVENTORY_STORE.update(data["INVENTORY_STORE"])
+            if "PATIENT_MEDICATIONS" in data:
+                PATIENT_MEDICATIONS.clear()
+                PATIENT_MEDICATIONS.update(data["PATIENT_MEDICATIONS"])
+            if "PATIENT_INFO" in data:
+                PATIENT_INFO.clear()
+                PATIENT_INFO.update(data["PATIENT_INFO"])
+            if "FOLLOWUPS" in data:
+                FOLLOWUPS.clear()
+                FOLLOWUPS.extend(data["FOLLOWUPS"])
+    except Exception:
+        pass
+
+
+# Initial load from persistent file if it exists
+_load_store_from_file()
 
 
 def _get_session_patient_id() -> str | None:
@@ -89,6 +136,25 @@ def save_clinical_note(
 
     _set_session_patient_id(patient_id)
 
+    # Automatically add treatment to patient's active medications list to maintain continuity
+    if patient_id not in PATIENT_MEDICATIONS:
+        PATIENT_MEDICATIONS[patient_id] = []
+    
+    exists = False
+    for med in PATIENT_MEDICATIONS[patient_id]:
+        if med["drug"].lower() in treatment.lower() or treatment.lower() in med["drug"].lower():
+            exists = True
+            break
+    if not exists and treatment:
+        PATIENT_MEDICATIONS[patient_id].append({
+            "drug": treatment,
+            "dosage": dosage,
+            "prescribed": datetime.now().strftime("%Y-%m-%d"),
+            "condition": diagnosis
+        })
+
+    _save_store_to_file()
+
     return json.dumps(
         {
             "status": "saved",
@@ -138,33 +204,137 @@ def update_inventory(drug_name: str, quantity_deducted: int) -> str:
     Returns:
         JSON string with updated stock levels or low-stock warning.
     """
-    current = INVENTORY_STORE.get(drug_name, 0)
+    # Normalize drug name to match case of seeded keys if possible
+    normalized_name = drug_name
+    for k in INVENTORY_STORE:
+        if k.lower() == drug_name.lower():
+            normalized_name = k
+            break
+
+    current = INVENTORY_STORE.get(normalized_name, 0)
     if quantity_deducted > current:
         return json.dumps(
             {
                 "status": "error",
-                "message": f"Insufficient stock. Only {current} units of {drug_name} available.",
-                "drug": drug_name,
+                "message": f"Insufficient stock. Only {current} units of {normalized_name} available.",
+                "drug": normalized_name,
                 "available": current,
                 "requested": quantity_deducted,
             }
         )
 
-    INVENTORY_STORE[drug_name] = current - quantity_deducted
-    remaining = INVENTORY_STORE[drug_name]
+    INVENTORY_STORE[normalized_name] = current - quantity_deducted
+    remaining = INVENTORY_STORE[normalized_name]
 
     result = {
         "status": "success",
-        "message": f"Deducted {quantity_deducted} units of {drug_name}. {remaining} units remaining.",
-        "drug": drug_name,
+        "message": f"Deducted {quantity_deducted} units of {normalized_name}. {remaining} units remaining.",
+        "drug": normalized_name,
         "deducted": quantity_deducted,
         "remaining": remaining,
     }
 
     if remaining < 20:
-        result["warning"] = f"Low stock alert: Only {remaining} units of {drug_name} remaining. Please reorder soon."
+        result["warning"] = f"Low stock alert: Only {remaining} units of {normalized_name} remaining. Please reorder soon."
+
+    _save_store_to_file()
 
     return json.dumps(result, indent=2)
+
+
+def get_inventory_status(drug_name: str | None = None) -> str:
+    """Retrieve current stock levels and inventory alerts.
+
+    Args:
+        drug_name: Optional name of specific medication to check. If omitted, returns low stock alerts and overall summary.
+
+    Returns:
+        JSON string with inventory details.
+    """
+    if drug_name:
+        normalized_name = None
+        for k in INVENTORY_STORE:
+            if k.lower() == drug_name.lower():
+                normalized_name = k
+                break
+        
+        if normalized_name:
+            qty = INVENTORY_STORE[normalized_name]
+            return json.dumps(
+                {
+                    "status": "success",
+                    "drug": normalized_name,
+                    "stock": qty,
+                    "status_label": "In Stock" if qty >= 20 else "Low Stock" if qty > 0 else "Out of Stock"
+                },
+                indent=2
+            )
+        else:
+            return json.dumps(
+                {
+                    "status": "not_found",
+                    "message": f"Medication '{drug_name}' not found in inventory.",
+                    "available_inventory": list(INVENTORY_STORE.keys())
+                },
+                indent=2
+            )
+
+    low_stock = {k: v for k, v in INVENTORY_STORE.items() if v < 20}
+    return json.dumps(
+        {
+            "status": "success",
+            "total_inventory_items": len(INVENTORY_STORE),
+            "low_stock_alerts": low_stock,
+            "full_inventory": INVENTORY_STORE
+        },
+        indent=2
+    )
+
+
+def register_patient(
+    patient_id: str,
+    name: str,
+    species: str,
+    breed: str,
+    age: str,
+    owner_contact: str,
+) -> str:
+    """Register a new animal patient in the clinic records.
+
+    Args:
+        patient_id: Unique patient identifier (e.g. CH-003, FE-002).
+        name: Name of the pet.
+        species: Species of the animal (e.g. Canine, Feline, Equine).
+        breed: Breed of the animal.
+        age: Age of the animal (e.g. '3 years', '6 months').
+        owner_contact: Phone number or contact of the pet owner.
+
+    Returns:
+        JSON string confirming registration.
+    """
+    PATIENT_INFO[patient_id] = {
+        "name": name,
+        "species": species,
+        "breed": breed,
+        "age": age,
+        "owner": owner_contact,
+    }
+    if patient_id not in PATIENT_MEDICATIONS:
+        PATIENT_MEDICATIONS[patient_id] = []
+    if patient_id not in CLINICAL_NOTES_STORE:
+        CLINICAL_NOTES_STORE[patient_id] = []
+
+    _set_session_patient_id(patient_id)
+    _save_store_to_file()
+
+    return json.dumps(
+        {
+            "status": "registered",
+            "message": f"Successfully registered new patient {name} with ID {patient_id}.",
+            "patient": PATIENT_INFO[patient_id],
+        },
+        indent=2,
+    )
 
 
 def schedule_followup(patient_id: str, days_from_now: int, message: str) -> str:
@@ -191,6 +361,8 @@ def schedule_followup(patient_id: str, days_from_now: int, message: str) -> str:
     }
     FOLLOWUPS.append(followup)
 
+    _save_store_to_file()
+
     return json.dumps(
         {
             "status": "scheduled",
@@ -215,6 +387,8 @@ def send_owner_notification(patient_id: str, message: str) -> str:
     """
     owner = PATIENT_INFO.get(patient_id, {}).get("owner", "Unknown")
     patient_name = PATIENT_INFO.get(patient_id, {}).get("name", patient_id)
+
+    _save_store_to_file()
 
     return json.dumps(
         {

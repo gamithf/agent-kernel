@@ -30,6 +30,9 @@ logger.info(
 
 
 def setup():
+    from agents import set_default_openai_api
+    set_default_openai_api("chat_completions")
+
     from agent import create_agents
     from knowledge import create_vetra_knowledge_base
 

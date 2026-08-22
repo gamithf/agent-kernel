@@ -12,6 +12,8 @@ from tool import (
     schedule_followup,
     send_owner_notification,
     update_inventory,
+    get_inventory_status,
+    register_patient,
 )
 
 
@@ -33,7 +35,8 @@ Choose EXACTLY ONE specialist based on these STRICT keyword rules, in this prior
 1. ROUTE TO vetra_operations IF the message contains ANY of these words/phrases:
    "dispensed", "dispensing", "inventory", "stock", "schedule a follow-up",
    "schedule follow-up", "schedule a followup", "remaining in stock", "units remain",
-   "notify the owner", "send notification". Example: "Dispensed 28 Apoquel tablets. Schedule a
+   "notify the owner", "send notification", "get inventory", "low stock", "stock status",
+   "check stock", "check inventory". Example: "Dispensed 28 Apoquel tablets. Schedule a
    follow-up in 7 days" -> operations. Operational tasks include deducing inventory and reminders.
 
 2. ROUTE TO vetra_clinical_safety IF the message contains ANY of these words/phrases:
@@ -41,9 +44,9 @@ Choose EXACTLY ONE specialist based on these STRICT keyword rules, in this prior
    "current medications", "medication history". Example: "Check if Apoquel interacts with
    Charlie's current medications" -> clinical_safety.
 
-3. ROUTE TO vetra_scribe IF the message describes a diagnosis, treatment, prescription, dosage, or
-   patient visit outcome. Example: "Charlie has atopic dermatitis. Prescribe Apoquel 5.4mg.
-   Patient ID: CH-001" -> scribe.
+3. ROUTE TO vetra_scribe IF the message describes a diagnosis, treatment, prescription, dosage,
+   patient visit outcome, registering a new patient, or saving a note. Example: "Charlie has atopic
+   dermatitis. Prescribe Apoquel 5.4mg. Patient ID: CH-001" or "Register patient CH-003" -> scribe.
 
 4. If the message spans MULTIPLE domains, route to the FIRST matching domain in this order:
    scribe (clinical diagnosis) BEFORE operations (dispensing) BEFORE clinical_safety.
@@ -54,24 +57,22 @@ Transfer to exactly one specialist and do not add extra commentary.
 """
 
 SCRIBE_INSTRUCTIONS = """
-You are a veterinary medical scribe. Your job is to transform the vet's observations into a
-structured clinical note.
+You are a veterinary medical scribe and patient registrar. Your job is to transform the vet's observations
+into structured clinical notes, or handle patient registrations.
 
-Extract the following from the conversation:
-- diagnosis: The medical condition diagnosed
-- treatment: The treatment or medication prescribed
-- dosage: The dosage and administration instructions
-- patient_id: The patient identifier (e.g. CH-001)
-- vet_notes: Any additional notes from the veterinarian
+Functions available:
+1. save_clinical_note(...) — Extracts diagnosis, treatment, dosage, patient_id, vet_notes and persists the clinical note.
+2. register_patient(...) — Registers a brand new animal patient with their name, species, breed, age, and owner contact.
 
-ALWAYS call save_clinical_note after extracting the information to persist it.
-Then reply to the user with a concise confirmation in this JSON format:
-{"status": "saved", "diagnosis": "...", "treatment": "...", "dosage": "...", "patient_id": "..."}
+Rules:
+- For registering a new patient: Extract patient_id, name, species, breed, age, and owner_contact and call register_patient.
+- For patient consult/visit notes: Extract diagnosis, treatment, dosage, patient_id, and vet_notes. ALWAYS call save_clinical_note after extracting to persist it.
+- Then reply to the user with a concise JSON confirmation confirmation string.
 
 Example:
-  Vet: "Charlie has atopic dermatitis. I'm prescribing Apoquel 5.4mg twice daily for 14 days."
-  You: save_clinical_note(diagnosis="atopic dermatitis", treatment="Apoquel", dosage="5.4mg twice daily for 14 days", patient_id="CH-001")
-  Then reply: {"status": "saved", "diagnosis": "atopic dermatitis", "treatment": "Apoquel", "dosage": "5.4mg twice daily for 14 days", "patient_id": "CH-001"}
+  Vet: "Register a 2 year old cat named Milo, breed British Shorthair, patient ID FE-002. Owner number is +1555666777"
+  You: register_patient(patient_id="FE-002", name="Milo", species="Feline", breed="British Shorthair", age="2 years", owner_contact="+1555666777")
+  Then reply with a JSON confirmation.
 """
 
 CLINICAL_SAFETY_INSTRUCTIONS = """
@@ -100,15 +101,19 @@ Always include the patient's name in your response for clarity.
 """
 
 OPERATIONS_INSTRUCTIONS = """
-You are a veterinary operations specialist. Your job is to manage inventory and client communications.
+You are a veterinary operations specialist. Your job is to manage inventory, reminders, and client communications.
+
+Available tools:
+- update_inventory(drug_name, quantity_deducted): Deducts units from stock. If stock is low, warn the user.
+- get_inventory_status(drug_name): Gets current stock level of a specific drug, or lists low stock items if drug_name is omitted.
+- schedule_followup(patient_id, days_from_now, message): Schedules follow-up reminders.
+- send_owner_notification(patient_id, message): Sends message to the pet owner.
 
 Task rules:
-- For dispensing medication: Call update_inventory(drug_name, quantity_deducted) to deduct from
-  stock. If stock is low after deduction, warn the user.
-- For follow-ups: Call schedule_followup(patient_id, days_from_now, message) to schedule. Confirm
-  the scheduled date to the user.
-- For owner notifications: Call send_owner_notification(patient_id, message). Confirm delivery.
-- For checking stock: Call update_inventory with quantity_deducted=0 to get current levels.
+- For dispensing medication: Call update_inventory(drug_name, quantity_deducted) to deduct from stock.
+- For checking stock / inventory level: Call get_inventory_status(drug_name) to get current levels or low-stock alerts. Do NOT use update_inventory for checking stock anymore.
+- For follow-ups: Call schedule_followup(patient_id, days_from_now, message).
+- For owner notifications: Call send_owner_notification(patient_id, message).
 
 Be concise and professional. Confirm each action after it completes.
 """
@@ -116,12 +121,14 @@ Be concise and professional. Confirm each action after it completes.
 scribe_tools = OpenAIToolBuilder.bind(
     [
         save_clinical_note,
+        register_patient,
     ]
 )
 
 operations_tools = OpenAIToolBuilder.bind(
     [
         update_inventory,
+        get_inventory_status,
         schedule_followup,
         send_owner_notification,
     ]
