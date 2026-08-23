@@ -14,6 +14,7 @@ from tool import (
     update_inventory,
     get_inventory_status,
     register_patient,
+    get_patient_schedule,
 )
 
 
@@ -36,8 +37,8 @@ Choose EXACTLY ONE specialist based on these STRICT keyword rules, in this prior
    "dispensed", "dispensing", "inventory", "stock", "schedule a follow-up",
    "schedule follow-up", "schedule a followup", "remaining in stock", "units remain",
    "notify the owner", "send notification", "get inventory", "low stock", "stock status",
-   "check stock", "check inventory". Example: "Dispensed 28 Apoquel tablets. Schedule a
-   follow-up in 7 days" -> operations. Operational tasks include deducing inventory and reminders.
+   "check stock", "check inventory", "schedule", "schedules", "followups", "reminders". 
+   Example: "Dispensed 28 Apoquel tablets. Schedule a follow-up in 7 days" or "get schedule for CH-003" -> operations.
 
 2. ROUTE TO vetra_clinical_safety IF the message contains ANY of these words/phrases:
    "interact", "interaction", "is it safe", "safe to", "check", "contraindication",
@@ -65,14 +66,27 @@ Functions available:
 2. register_patient(...) — Registers a brand new animal patient with their name, species, breed, age, and owner contact.
 
 Rules:
-- For registering a new patient: Extract patient_id, name, species, breed, age, and owner_contact and call register_patient.
+- For registering a new patient: Extract name, species, breed, age, owner_contact, and optional patient_id. If no patient_id is stated, omit it or pass null, and the tool will automatically generate a sequential ID (e.g., CH-003 for Canines, FE-002 for Felines, PT-001 for others).
 - For patient consult/visit notes: Extract diagnosis, treatment, dosage, patient_id, and vet_notes. ALWAYS call save_clinical_note after extracting to persist it.
-- Then reply to the user with a concise JSON confirmation confirmation string.
+- Reply to the user with a beautifully formatted, clear Markdown card on WhatsApp. Use bold keys, emoji bullet points, and neat line spacing so it is extremely easy for a busy vet to read instantly. Do NOT output raw JSON code blocks or curly braces.
 
-Example:
-  Vet: "Register a 2 year old cat named Milo, breed British Shorthair, patient ID FE-002. Owner number is +1555666777"
-  You: register_patient(patient_id="FE-002", name="Milo", species="Feline", breed="British Shorthair", age="2 years", owner_contact="+1555666777")
-  Then reply with a JSON confirmation.
+Example format for Registration:
+📋 **Patient Onboarded Successfully!**
+
+**Patient ID:** CH-003
+**Name:** Buster
+**Species:** Canine (German Shepherd)
+**Age:** 3 years
+**Owner Contact:** +198-765-4321
+
+Example format for Clinical Note:
+📝 **Clinical Consultation Saved**
+
+**Patient ID:** CH-003
+**Diagnosis:** Osteoarthritis
+**Prescribed Treatment:** Carprofen
+**Dosage:** 50mg once daily
+**Notes:** Saved to persistent medical history.
 """
 
 CLINICAL_SAFETY_INSTRUCTIONS = """
@@ -90,13 +104,25 @@ Protocol — you MUST call these tools in order. Do NOT answer from memory:
    This is mandatory before drawing any conclusion.
 2. ALWAYS call read_kb(backend="VetDrugDB", query="<new drug> interaction with <current meds> in
    <species>", limit=5) to search for known interactions with EVERY current medication.
-3. If a conflict is found, IMMEDIATELY flag the alert with severity level (critical/high/moderate).
-4. If multiple interactions exist, list all of them with their severity and clinical guidance.
-5. Suggest safer alternatives when available.
-6. If no interaction found, explicitly confirm it is safe to proceed.
+3. If no interaction found, explicitly confirm it is safe to proceed.
+4. If a conflict is found, immediately raise an alert.
 
-If you have not called get_patient_history, call it now before answering. Base your answer ONLY on the
-actual tool results, never on your own knowledge of the drugs.
+Format your interaction warning strictly and cleanly. Do NOT use bullet symbols inside bold tags (like `* **Key:**` or `**• Key:**` which can double up symbols and show raw markdown formatting in WhatsApp). Instead, use clean and flat line bolding like this:
+
+⚠️ **CRITICAL SAFETY ALERT**
+
+**Patient:** Buster (CH-003)
+**Active Medication:** Carprofen
+**Prescribed Medication:** Prednisone
+**Severity:** Critical
+
+**Interaction Details:** Concurrent use of NSAIDs (Carprofen) and corticosteroids (Prednisone) significantly increases the risk of gastrointestinal ulceration, perforation, and hemorrhage in dogs.
+
+**Clinical Guidance:** AVOID concurrent use of Prednisone with Carprofen.
+
+**Safer Alternatives:** Please consider alternative treatments that do not involve corticosteroids, or explore other NSAIDs if a corticosteroid is deemed absolutely necessary.
+
+Base your answer ONLY on the actual tool results, never on your own knowledge of the drugs.
 Always include the patient's name in your response for clarity.
 """
 
@@ -107,12 +133,14 @@ Available tools:
 - update_inventory(drug_name, quantity_deducted): Deducts units from stock. If stock is low, warn the user.
 - get_inventory_status(drug_name): Gets current stock level of a specific drug, or lists low stock items if drug_name is omitted.
 - schedule_followup(patient_id, days_from_now, message): Schedules follow-up reminders.
+- get_patient_schedule(patient_id): Retrieves all scheduled follow-up reminders for a patient.
 - send_owner_notification(patient_id, message): Sends message to the pet owner.
 
 Task rules:
 - For dispensing medication: Call update_inventory(drug_name, quantity_deducted) to deduct from stock.
-- For checking stock / inventory level: Call get_inventory_status(drug_name) to get current levels or low-stock alerts. Do NOT use update_inventory for checking stock anymore.
+- For checking stock / inventory level: Call get_inventory_status(drug_name) to get current levels or low-stock alerts.
 - For follow-ups: Call schedule_followup(patient_id, days_from_now, message).
+- For viewing schedules: Call get_patient_schedule(patient_id) to see reminders.
 - For owner notifications: Call send_owner_notification(patient_id, message).
 
 Be concise and professional. Confirm each action after it completes.
@@ -130,6 +158,7 @@ operations_tools = OpenAIToolBuilder.bind(
         update_inventory,
         get_inventory_status,
         schedule_followup,
+        get_patient_schedule,
         send_owner_notification,
     ]
 )

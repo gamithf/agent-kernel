@@ -40,7 +40,9 @@ async def run_step(service, step_num, title, user_input):
     try:
         result = await service.run(user_input)
         print("\r" + " "*20 + "\r", end="") # Clear thinking message
-        print(f"Vetra (Response):\n{result}")
+        # Ensure we encode/decode safely to prevent Windows console charmap crash
+        safe_response = str(result).encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+        print(f"Vetra (Response):\n{safe_response}")
     except Exception as e:
         print(f"\rError running step: {e}")
 
@@ -73,7 +75,7 @@ async def main():
         service,
         1,
         "Register a New Patient (Scribe & Registrar Agent)",
-        "Register a new patient named Buster, Canine, German Shepherd, age 3 years. Owner contact is +1987654321. Patient ID is CH-003."
+        "Register a new patient named Buster, Canine, German Shepherd, age 3 years. Owner contact is +1987654321."
     )
 
     # Step 2: Save clinical consultation and prescribe Carprofen (Scribe Agent -> Auto-Prescription Loop)
@@ -106,6 +108,14 @@ async def main():
         5,
         "Deduct Stock & Schedule Follow-Up Reminder (Operations Agent)",
         "Deduct 14 units of Carprofen for Buster (CH-003). Also schedule a follow-up check in 14 days."
+    )
+
+    # Step 6: View Patient Schedule (Operations Agent -> New Schedule Tracker tool)
+    await run_step(
+        service,
+        6,
+        "Retrieve Patient Schedule & Follow-ups (Operations Agent)",
+        "Give me the schedules of patient CH-003."
     )
 
     print("\n" + "="*80)

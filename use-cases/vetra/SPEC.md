@@ -36,6 +36,7 @@ Each tool is a plain Python function with type hints and docstrings, bound via `
 | `update_inventory` | Operations | Deduct medication from clinic stock |
 | `get_inventory_status` | Operations | Check stock levels or list low stock items |
 | `schedule_followup` | Operations | Schedule a follow-up reminder |
+| `get_patient_schedule` | Operations | Retrieve all scheduled follow-up reminders for a patient |
 | `send_owner_notification` | Operations | Send a notification to the pet owner |
 
 ### Knowledge Base

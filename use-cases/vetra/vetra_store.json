@@ -1,35 +1,9 @@
 {
   "CLINICAL_NOTES_STORE": {
-    "CH-003": [
-      {
-        "diagnosis": "osteoarthritis",
-        "treatment": "Carprofen",
-        "dosage": "50mg once daily",
-        "patient_id": "CH-003",
-        "vet_notes": "",
-        "timestamp": "2026-08-22T11:38:49.725738"
-      },
-      {
-        "diagnosis": "osteoarthritis",
-        "treatment": "Carprofen",
-        "dosage": "50mg once daily",
-        "patient_id": "CH-003",
-        "vet_notes": "",
-        "timestamp": "2026-08-22T11:43:17.440693"
-      },
-      {
-        "diagnosis": "osteoarthritis",
-        "treatment": "Carprofen",
-        "dosage": "50mg once daily",
-        "patient_id": "CH-003",
-        "vet_notes": "",
-        "timestamp": "2026-08-22T13:53:47.656790"
-      }
-    ]
   },
   "INVENTORY_STORE": {
     "Apoquel": 120,
-    "Carprofen": 158,
+    "Carprofen": 144,
     "Meloxicam": 150,
     "Clavamox": 80,
     "Prednisone": 100,
@@ -68,20 +42,12 @@
         "condition": "CHF"
       }
     ],
-    "FE-001": [
-      {
-        "drug": "Methimazole",
-        "dosage": "2.5mg twice daily",
-        "prescribed": "2026-04-10",
-        "condition": "hyperthyroidism"
-      }
-    ],
     "CH-003": [
       {
         "drug": "Carprofen",
         "dosage": "50mg once daily",
-        "prescribed": "2026-08-22",
-        "condition": "osteoarthritis"
+        "prescribed": "2026-08-23",
+        "condition": "Osteoarthritis"
       }
     ]
   },
@@ -100,13 +66,6 @@
       "age": "10 years",
       "owner": "+1234567891"
     },
-    "FE-001": {
-      "name": "Luna",
-      "species": "Feline",
-      "breed": "Domestic Shorthair",
-      "age": "12 years",
-      "owner": "+1234567892"
-    },
     "CH-003": {
       "name": "Buster",
       "species": "Canine",
@@ -119,26 +78,10 @@
     {
       "patient_id": "CH-003",
       "patient_name": "Buster",
-      "scheduled_date": "2026-09-05",
+      "scheduled_date": "2026-09-06",
       "days_from_now": 14,
-      "message": "Follow-up for osteoarthritis and Carprofen treatment.",
-      "created": "2026-08-22T11:39:09.516986"
-    },
-    {
-      "patient_id": "CH-003",
-      "patient_name": "Buster",
-      "scheduled_date": "2026-09-05",
-      "days_from_now": 14,
-      "message": "Follow-up for osteoarthritis and Carprofen treatment.",
-      "created": "2026-08-22T11:43:37.619745"
-    },
-    {
-      "patient_id": "CH-003",
-      "patient_name": "Buster",
-      "scheduled_date": "2026-09-05",
-      "days_from_now": 14,
-      "message": "Follow-up check for osteoarthritis and Carprofen medication.",
-      "created": "2026-08-22T13:54:49.963326"
+      "message": "Follow-up for osteoarthritis and Carprofen efficacy.",
+      "created": "2026-08-23T11:44:28.935779"
     }
   ]
 }

@@ -292,26 +292,45 @@ def get_inventory_status(drug_name: str | None = None) -> str:
 
 
 def register_patient(
-    patient_id: str,
     name: str,
     species: str,
     breed: str,
     age: str,
     owner_contact: str,
+    patient_id: str | None = None,
 ) -> str:
     """Register a new animal patient in the clinic records.
 
     Args:
-        patient_id: Unique patient identifier (e.g. CH-003, FE-002).
         name: Name of the pet.
         species: Species of the animal (e.g. Canine, Feline, Equine).
         breed: Breed of the animal.
         age: Age of the animal (e.g. '3 years', '6 months').
         owner_contact: Phone number or contact of the pet owner.
+        patient_id: Optional unique patient identifier (e.g. CH-003). If omitted, it will be automatically generated.
 
     Returns:
         JSON string confirming registration.
     """
+    if not patient_id:
+        prefix = "PT"
+        species_lower = species.lower()
+        if "canine" in species_lower or "dog" in species_lower or "pup" in species_lower:
+            prefix = "CH"
+        elif "feline" in species_lower or "cat" in species_lower or "kit" in species_lower:
+            prefix = "FE"
+
+        existing_nums = []
+        for k in PATIENT_INFO.keys():
+            if k.startswith(prefix + "-"):
+                try:
+                    num = int(k.split("-")[1])
+                    existing_nums.append(num)
+                except ValueError:
+                    pass
+        next_num = max(existing_nums) + 1 if existing_nums else 1
+        patient_id = f"{prefix}-{next_num:03d}"
+
     PATIENT_INFO[patient_id] = {
         "name": name,
         "species": species,
@@ -397,6 +416,37 @@ def send_owner_notification(patient_id: str, message: str) -> str:
             "patient_name": patient_name,
             "owner_contact": owner,
             "notification": message,
+        },
+        indent=2,
+    )
+
+
+def get_patient_schedule(patient_id: str | None = None) -> str:
+    """Retrieve scheduled follow-up reminders for a patient or the entire clinic.
+
+    Args:
+        patient_id: Optional unique patient identifier (e.g. CH-001) to filter reminders. If omitted, returns all scheduled reminders.
+
+    Returns:
+        JSON string listing the follow-ups.
+    """
+    if patient_id:
+        matches = [f for f in FOLLOWUPS if f["patient_id"].lower() == patient_id.lower()]
+        return json.dumps(
+            {
+                "status": "success",
+                "patient_id": patient_id,
+                "patient_name": PATIENT_INFO.get(patient_id, {}).get("name", "Unknown"),
+                "scheduled_followups": matches,
+            },
+            indent=2,
+        )
+
+    return json.dumps(
+        {
+            "status": "success",
+            "total_scheduled_followups": len(FOLLOWUPS),
+            "all_followups": FOLLOWUPS,
         },
         indent=2,
     )

@@ -230,10 +230,42 @@ class VetraWhatsAppHandler(RESTRequestHandler):
                 tmp_path = tmp.name
 
             try:
+                # Determine standard transcription client to avoid sending Whisper requests to Gemini
+                trans_key = os.environ.get("TRANSCRIPTION_API_KEY") or os.environ.get("GROQ_API_KEY") or os.environ.get("OPENAI_API_KEY")
+                trans_base = os.environ.get("TRANSCRIPTION_BASE_URL")
+                trans_model = os.environ.get("TRANSCRIPTION_MODEL")
+
+                if not trans_base:
+                    # If we have a Groq key, default to Groq Whisper
+                    if trans_key and trans_key.startswith("gsk_"):
+                        trans_base = "https://api.groq.com/openai/v1"
+                        if not trans_model:
+                            trans_model = "whisper-large-v3"
+                    elif "generativelanguage.googleapis.com" in os.environ.get("OPENAI_BASE_URL", ""):
+                        # Gemini endpoint doesn't support Whisper. If we have a GROQ_API_KEY set, use it!
+                        groq_key = os.environ.get("GROQ_API_KEY")
+                        if groq_key:
+                            trans_key = groq_key
+                            trans_base = "https://api.groq.com/openai/v1"
+                            if not trans_model:
+                                trans_model = "whisper-large-v3"
+                        else:
+                            # Fallback to standard OpenAI
+                            trans_base = "https://api.openai.com/v1"
+                            if not trans_model:
+                                trans_model = "whisper-1"
+                    else:
+                        trans_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+                        if not trans_model:
+                            trans_model = "whisper-1"
+                else:
+                    if not trans_model:
+                        trans_model = "whisper-1"
+
                 with open(tmp_path, "rb") as f:
-                    client = openai.AsyncOpenAI()
+                    client = openai.AsyncOpenAI(api_key=trans_key, base_url=trans_base)
                     transcript_obj = await client.audio.transcriptions.create(
-                        model="whisper-1",
+                        model=trans_model,
                         file=f,
                     )
                 return transcript_obj.text
