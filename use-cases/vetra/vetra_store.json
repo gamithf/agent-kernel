@@ -41,14 +41,6 @@
         "prescribed": "2026-05-01",
         "condition": "CHF"
       }
-    ],
-    "CH-003": [
-      {
-        "drug": "Carprofen",
-        "dosage": "50mg once daily",
-        "prescribed": "2026-08-23",
-        "condition": "Osteoarthritis"
-      }
     ]
   },
   "PATIENT_INFO": {
@@ -65,23 +57,8 @@
       "breed": "Labrador",
       "age": "10 years",
       "owner": "+1234567891"
-    },
-    "CH-003": {
-      "name": "Buster",
-      "species": "Canine",
-      "breed": "German Shepherd",
-      "age": "3 years",
-      "owner": "+1987654321"
     }
   },
   "FOLLOWUPS": [
-    {
-      "patient_id": "CH-003",
-      "patient_name": "Buster",
-      "scheduled_date": "2026-09-06",
-      "days_from_now": 14,
-      "message": "Follow-up for osteoarthritis and Carprofen efficacy.",
-      "created": "2026-08-23T11:44:28.935779"
-    }
   ]
 }
