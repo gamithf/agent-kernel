@@ -312,6 +312,25 @@ def register_patient(
     Returns:
         JSON string confirming registration.
     """
+    # Idempotency Check: Return existing patient if name and owner contact match exactly
+    for existing_id, info in PATIENT_INFO.items():
+        if info.get("name", "").lower() == name.lower() and info.get("owner", "") == owner_contact:
+            _set_session_patient_id(existing_id)
+            return json.dumps(
+                {
+                    "status": "already_registered",
+                    "message": f"Patient '{name}' is already registered with ID {existing_id}.",
+                    "patient": {
+                        "name": info.get("name"),
+                        "species": info.get("species"),
+                        "breed": info.get("breed"),
+                        "age": info.get("age"),
+                        "owner": info.get("owner")
+                    }
+                },
+                indent=2,
+            )
+
     if not patient_id:
         prefix = "PT"
         species_lower = species.lower()
