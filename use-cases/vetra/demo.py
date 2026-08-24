@@ -54,7 +54,7 @@ async def run_cli():
     print("  Type your message below (or 'quit' to exit)")
     print("=" * 60)
     print("  Examples:")
-    print('    "Register a new patient named Buster, Canine, German Shepherd, age 3."')
+    print('    "Register a new patient named Buster, Canine, German Shepherd, age 3. Owner contact is +94771234567"')
     print('    "Buster has osteoarthritis. Prescribe Carprofen 50mg. ID: CH-003"')
     print('    "Check if it is safe to prescribe Prednisone for Buster (CH-003)"')
     print('    "Dispensed 14 Carprofen tablets. Schedule follow-up in 14 days"')
