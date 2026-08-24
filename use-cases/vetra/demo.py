@@ -54,9 +54,11 @@ async def run_cli():
     print("  Type your message below (or 'quit' to exit)")
     print("=" * 60)
     print("  Examples:")
-    print('    "Charlie has atopic dermatitis. Prescribe Apoquel 5.4mg. Patient ID: CH-001"')
-    print('    "Check if Apoquel interacts with Charlie current medications"')
-    print('    "Dispensed 28 Apoquel tablets. Schedule follow-up in 7 days"')
+    print('    "Register a new patient named Buster, Canine, German Shepherd, age 3."')
+    print('    "Buster has osteoarthritis. Prescribe Carprofen 50mg. ID: CH-003"')
+    print('    "Check if it is safe to prescribe Prednisone for Buster (CH-003)"')
+    print('    "Dispensed 14 Carprofen tablets. Schedule follow-up in 14 days"')
+    print('    "Give me the schedules of patient CH-003"')
     print("=" * 60)
 
     while True:
